@@ -11,250 +11,55 @@
 <link rel="manifest" href="manifest.json">
 <title>문서 스캐너</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+:root{--bg:#0f0f0f;--bg2:#1a1a1a;--bg3:#242424;--border:#2e2e2e;--green:#4ade80;--text:#fff;--text2:#a0a0a0;--text3:#555;}
+body{background:var(--bg);color:var(--text);font-family:'Noto Sans KR',sans-serif;min-height:100vh;min-height:-webkit-fill-available;overflow-x:hidden;user-select:none;}
+.header{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(15,15,15,0.95);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;}
+.header-title{font-size:17px;font-weight:700;}
+.page-count{background:var(--bg3);border:1px solid var(--border);color:var(--text2);font-size:12px;padding:4px 10px;border-radius:20px;}
+.main{padding-top:70px;padding-bottom:160px;min-height:100vh;}
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 230px);padding:40px 20px;text-align:center;}
+.empty-icon{width:80px;height:80px;border:2px dashed var(--border);border-radius:20px;display:flex;align-items:center;justify-content:center;font-size:32px;margin-bottom:20px;color:var(--text3);}
+.empty-title{font-size:18px;font-weight:600;margin-bottom:8px;}
+.empty-sub{font-size:14px;color:var(--text2);line-height:1.6;}
+.pages-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;padding:16px;}
+.page-item{position:relative;border-radius:10px;overflow:hidden;background:var(--bg2);border:1px solid var(--border);aspect-ratio:3/4;}
+.page-item img{width:100%;height:100%;object-fit:cover;display:block;}
+.page-num{position:absolute;bottom:8px;left:8px;background:rgba(0,0,0,0.7);color:#fff;font-size:11px;padding:3px 8px;border-radius:10px;font-weight:500;}
+.page-delete{position:absolute;top:8px;right:8px;background:rgba(0,0,0,0.7);color:#fff;border:none;border-radius:50%;width:28px;height:28px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.bottom-bar{position:fixed;bottom:0;left:0;right:0;background:rgba(15,15,15,0.97);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid var(--border);padding:16px 20px;padding-bottom:max(16px,env(safe-area-inset-bottom));}
+.btn-row{display:flex;gap:10px;margin-bottom:10px;}
+.btn{flex:1;padding:14px;border:none;border-radius:12px;font-size:15px;font-family:'Noto Sans KR',sans-serif;font-weight:500;cursor:pointer;transition:all 0.15s;display:flex;align-items:center;justify-content:center;gap:6px;}
+.btn:active{transform:scale(0.97);}
+.btn-camera{background:#fff;color:#000;}
+.btn-gallery{background:var(--bg3);color:var(--text);border:1px solid var(--border);}
+.btn-pdf{width:100%;padding:15px;background:linear-gradient(135deg,#1a1a1a,#2a2a2a);color:var(--text);border:1px solid #3a3a3a;border-radius:12px;font-size:15px;font-family:'Noto Sans KR',sans-serif;font-weight:600;cursor:pointer;transition:all 0.15s;display:flex;align-items:center;justify-content:center;gap:8px;}
+.btn-pdf:active{transform:scale(0.98);}
+.btn-pdf:disabled{opacity:0.3;cursor:not-allowed;}
+.btn-pdf.ready{background:linear-gradient(135deg,#16a34a,#15803d);border-color:#16a34a;}
 
-  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+/* 크롭 에디터 */
+.crop-overlay{display:none;position:fixed;inset:0;z-index:200;background:#000;flex-direction:column;}
+.crop-overlay.show{display:flex;}
+.crop-header{padding:14px 20px;display:flex;align-items:center;justify-content:space-between;background:rgba(0,0,0,0.9);flex-shrink:0;}
+.crop-title{font-size:15px;font-weight:700;}
+.crop-hint{font-size:12px;color:#aaa;text-align:center;padding:8px 16px;background:rgba(0,0,0,0.7);flex-shrink:0;}
+.crop-canvas-wrap{flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#111;}
+#cropCanvas{display:block;touch-action:none;max-width:100%;max-height:100%;}
+.crop-footer{padding:16px 20px;padding-bottom:max(16px,env(safe-area-inset-bottom));display:flex;gap:10px;background:rgba(0,0,0,0.9);flex-shrink:0;}
+.crop-btn{flex:1;padding:15px;border:none;border-radius:12px;font-size:15px;font-family:'Noto Sans KR',sans-serif;font-weight:600;cursor:pointer;}
+.crop-btn-cancel{background:#242424;color:#fff;border:1px solid #333;}
+.crop-btn-confirm{background:#16a34a;color:#fff;}
 
-  :root {
-    --bg: #0f0f0f;
-    --bg2: #1a1a1a;
-    --bg3: #242424;
-    --border: #2e2e2e;
-    --accent: #ffffff;
-    --accent2: #a0a0a0;
-    --green: #4ade80;
-    --red: #f87171;
-    --text: #ffffff;
-    --text2: #a0a0a0;
-    --text3: #555;
-  }
-
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Noto Sans KR', sans-serif;
-    min-height: 100vh;
-    min-height: -webkit-fill-available;
-    overflow-x: hidden;
-    user-select: none;
-  }
-
-  /* 헤더 */
-  .header {
-    position: fixed;
-    top: 0; left: 0; right: 0;
-    z-index: 100;
-    background: rgba(15,15,15,0.95);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border-bottom: 1px solid var(--border);
-    padding: 16px 20px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  .header-title { font-size: 17px; font-weight: 700; letter-spacing: -0.02em; }
-  .page-count {
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    color: var(--text2);
-    font-size: 12px;
-    padding: 4px 10px;
-    border-radius: 20px;
-  }
-
-  /* 메인 */
-  .main {
-    padding-top: 70px;
-    padding-bottom: 160px;
-    min-height: 100vh;
-  }
-
-  /* 빈 상태 */
-  .empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: calc(100vh - 230px);
-    padding: 40px 20px;
-    text-align: center;
-  }
-  .empty-icon {
-    width: 80px; height: 80px;
-    border: 2px dashed var(--border);
-    border-radius: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 32px;
-    margin-bottom: 20px;
-    color: var(--text3);
-  }
-  .empty-title { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
-  .empty-sub { font-size: 14px; color: var(--text2); line-height: 1.6; }
-
-  /* 페이지 그리드 */
-  .pages-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
-    padding: 16px;
-  }
-
-  .page-item {
-    position: relative;
-    border-radius: 10px;
-    overflow: hidden;
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    aspect-ratio: 3/4;
-  }
-  .page-item img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-  }
-  .page-num {
-    position: absolute;
-    bottom: 8px; left: 8px;
-    background: rgba(0,0,0,0.7);
-    color: #fff;
-    font-size: 11px;
-    padding: 3px 8px;
-    border-radius: 10px;
-    font-weight: 500;
-  }
-  .page-delete {
-    position: absolute;
-    top: 8px; right: 8px;
-    background: rgba(0,0,0,0.7);
-    color: #fff;
-    border: none;
-    border-radius: 50%;
-    width: 28px; height: 28px;
-    font-size: 14px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  /* 하단 버튼 영역 */
-  .bottom-bar {
-    position: fixed;
-    bottom: 0; left: 0; right: 0;
-    background: rgba(15,15,15,0.97);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border-top: 1px solid var(--border);
-    padding: 16px 20px;
-    padding-bottom: max(16px, env(safe-area-inset-bottom));
-  }
-
-  .btn-row {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 10px;
-  }
-
-  .btn {
-    flex: 1;
-    padding: 14px;
-    border: none;
-    border-radius: 12px;
-    font-size: 15px;
-    font-family: 'Noto Sans KR', sans-serif;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.15s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-  }
-  .btn:active { transform: scale(0.97); }
-
-  .btn-camera {
-    background: var(--text);
-    color: var(--bg);
-    font-size: 16px;
-  }
-  .btn-gallery {
-    background: var(--bg3);
-    color: var(--text);
-    border: 1px solid var(--border);
-  }
-
-  .btn-pdf {
-    width: 100%;
-    padding: 15px;
-    background: linear-gradient(135deg, #1a1a1a, #2a2a2a);
-    color: var(--text);
-    border: 1px solid #3a3a3a;
-    border-radius: 12px;
-    font-size: 15px;
-    font-family: 'Noto Sans KR', sans-serif;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.15s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-  }
-  .btn-pdf:active { transform: scale(0.98); }
-  .btn-pdf:disabled { opacity: 0.3; cursor: not-allowed; }
-  .btn-pdf.ready {
-    background: linear-gradient(135deg, #16a34a, #15803d);
-    border-color: #16a34a;
-  }
-
-  /* 숨김 input */
-  #cameraInput, #galleryInput { display: none; }
-
-  /* 로딩 오버레이 */
-  .loading-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.85);
-    z-index: 200;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 16px;
-  }
-  .loading-overlay.show { display: flex; }
-  .spinner {
-    width: 44px; height: 44px;
-    border: 3px solid #333;
-    border-top-color: #fff;
-    border-radius: 50%;
-    animation: spin 0.7s linear infinite;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .loading-text { font-size: 15px; color: var(--text2); }
-
-  /* 토스트 */
-  .toast {
-    position: fixed;
-    bottom: 180px;
-    left: 50%;
-    transform: translateX(-50%) translateY(20px);
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    color: var(--text);
-    padding: 10px 20px;
-    border-radius: 20px;
-    font-size: 13px;
-    opacity: 0;
-    transition: all 0.3s;
-    white-space: nowrap;
-    z-index: 300;
-  }
-  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.loading-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:300;flex-direction:column;align-items:center;justify-content:center;gap:16px;}
+.loading-overlay.show{display:flex;}
+.spinner{width:44px;height:44px;border:3px solid #333;border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.loading-text{font-size:15px;color:var(--text2);}
+.toast{position:fixed;bottom:180px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:10px 20px;border-radius:20px;font-size:13px;opacity:0;transition:all 0.3s;white-space:nowrap;z-index:400;}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+#cameraInput,#galleryInput{display:none;}
 </style>
 </head>
 <body>
@@ -264,11 +69,11 @@
   <div class="page-count" id="pageCount">0 페이지</div>
 </div>
 
-<div class="main" id="main">
+<div class="main">
   <div class="empty-state" id="emptyState">
     <div class="empty-icon">📷</div>
     <div class="empty-title">문서를 스캔해보세요</div>
-    <div class="empty-sub">카메라로 촬영하거나<br>갤러리에서 사진을 선택하세요<br>여러 장을 모아 PDF로 저장할 수 있어요</div>
+    <div class="empty-sub">촬영 후 네 꼭짓점을 조정하면<br>문서만 반듯하게 잘라줘요<br>여러 장 모아서 PDF로 저장 가능</div>
   </div>
   <div class="pages-grid" id="pagesGrid" style="display:none;"></div>
 </div>
@@ -278,9 +83,23 @@
     <button class="btn btn-camera" onclick="openCamera()">📷 촬영</button>
     <button class="btn btn-gallery" onclick="openGallery()">🖼️ 갤러리</button>
   </div>
-  <button class="btn-pdf" id="btnPdf" onclick="exportPdf()" disabled>
-    📑 PDF 저장
-  </button>
+  <button class="btn-pdf" id="btnPdf" onclick="exportPdf()" disabled>📑 PDF 저장</button>
+</div>
+
+<!-- 크롭 에디터 -->
+<div class="crop-overlay" id="cropOverlay">
+  <div class="crop-header">
+    <span class="crop-title">✂️ 문서 영역 조정</span>
+    <span style="font-size:12px;color:#888" id="cropProgress"></span>
+  </div>
+  <div class="crop-hint">🟢 초록 점을 드래그해서 문서 네 모서리에 맞춰주세요</div>
+  <div class="crop-canvas-wrap" id="cropWrap">
+    <canvas id="cropCanvas"></canvas>
+  </div>
+  <div class="crop-footer">
+    <button class="crop-btn crop-btn-cancel" onclick="skipCrop()">건너뛰기</button>
+    <button class="crop-btn crop-btn-confirm" onclick="confirmCrop()">✓ 자르기</button>
+  </div>
 </div>
 
 <input type="file" id="cameraInput" accept="image/*" capture="environment" onchange="handleFiles(this)">
@@ -290,385 +109,426 @@
   <div class="spinner"></div>
   <div class="loading-text" id="loadingText">처리 중...</div>
 </div>
-
 <div class="toast" id="toast"></div>
 
-<!-- jsPDF -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<!-- OpenCV.js -->
-<script async src="https://docs.opencv.org/4.8.0/opencv.js" onload="onOpenCvReady()" onerror="cvFailed()"></script>
-
 <script>
-let pages = []; // { dataUrl, width, height }
+let pages = [];
+let cropQueue = [];
+let cropCurrent = null;
+let cropCorners = [];
+let dragIdx = -1;
+let canvasScale = 1;
 
-function openCamera() {
-  document.getElementById('cameraInput').click();
-}
-function openGallery() {
-  document.getElementById('galleryInput').click();
-}
+function openCamera(){ document.getElementById('cameraInput').click(); }
+function openGallery(){ document.getElementById('galleryInput').click(); }
 
 async function handleFiles(input) {
   const files = Array.from(input.files);
   if (!files.length) return;
-
-  showLoading(`이미지 처리 중... (0/${files.length})`);
-
-  for (let i = 0; i < files.length; i++) {
-    showLoading(`배경 제거 중... (${i+1}/${files.length})`);
-    const processed = await processImage(files[i]);
-    pages.push(processed);
-  }
-
   input.value = '';
-  render();
-  hideLoading();
-  showToast(`${files.length}장 추가됐어요`);
+  for (const file of files) {
+    const img = await loadImage(file);
+    cropQueue.push(img);
+  }
+  processNextCrop();
 }
 
-// ─── OpenCV 준비 상태 ────────────────────────────
-let cvReady = false;
-function onOpenCvReady() { cvReady = true; console.log('OpenCV 준비됨'); }
-function cvFailed() { cvReady = false; console.log('OpenCV 로드 실패, 기본 모드 사용'); }
-
-// ─── 이미지 처리 (OpenCV 원근보정 + 배경제거) ────
-function processImage(file) {
-  return new Promise((resolve) => {
+function loadImage(file) {
+  return new Promise(resolve => {
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = e => {
       const img = new Image();
-      img.onload = () => {
-        const MAX = 2000;
-        let w = img.width, h = img.height;
-        if (w > MAX || h > MAX) {
-          const ratio = Math.min(MAX/w, MAX/h);
-          w = Math.round(w * ratio);
-          h = Math.round(h * ratio);
-        }
-
-        const canvas = document.createElement('canvas');
-        canvas.width = w; canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, w, h);
-
-        if (cvReady && typeof cv !== 'undefined' && cv.Mat) {
-          try {
-            const result = processWithOpenCV(canvas, w, h);
-            resolve(result);
-            return;
-          } catch(e) {
-            console.log('OpenCV 처리 실패, 기본 모드로 전환:', e);
-          }
-        }
-        // OpenCV 없으면 기본 처리
-        resolve(processBasic(canvas, w, h));
-      };
+      img.onload = () => resolve(img);
       img.src = e.target.result;
     };
     reader.readAsDataURL(file);
   });
 }
 
-function processWithOpenCV(srcCanvas, w, h) {
-  const src = cv.imread(srcCanvas);
-  const gray = new cv.Mat();
-  const blurred = new cv.Mat();
-  const edges = new cv.Mat();
+function processNextCrop() {
+  if (!cropQueue.length) return;
+  const img = cropQueue.shift();
+  openCropEditor(img);
+}
 
-  // 그레이스케일 + 블러 + 엣지 검출
-  cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-  cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
-  cv.Canny(blurred, edges, 30, 100);
+function openCropEditor(img) {
+  const MAX = 1400;
+  let w = img.naturalWidth || img.width;
+  let h = img.naturalHeight || img.height;
+  if (w > MAX || h > MAX) {
+    const r = Math.min(MAX/w, MAX/h);
+    w = Math.round(w*r); h = Math.round(h*r);
+  }
+  cropCurrent = { img, w, h };
 
-  // 윤곽선 찾기
-  const contours = new cv.MatVector();
-  const hierarchy = new cv.Mat();
-  cv.findContours(edges, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+  const overlay = document.getElementById('cropOverlay');
+  overlay.classList.add('show');
 
-  // 가장 큰 사각형 윤곽선 찾기
-  let bestCorners = null;
-  let bestArea = 0;
-  const minArea = w * h * 0.1;
+  // 캔버스 크기 설정
+  setTimeout(() => {
+    const wrap = document.getElementById('cropWrap');
+    const availW = wrap.clientWidth - 8;
+    const availH = wrap.clientHeight - 8;
+    canvasScale = Math.min(availW/w, availH/h);
+    const dispW = Math.round(w * canvasScale);
+    const dispH = Math.round(h * canvasScale);
 
-  for (let i = 0; i < contours.size(); i++) {
-    const cnt = contours.get(i);
-    const area = cv.contourArea(cnt);
-    if (area < minArea) { cnt.delete(); continue; }
+    const canvas = document.getElementById('cropCanvas');
+    canvas.width = dispW;
+    canvas.height = dispH;
 
-    const peri = cv.arcLength(cnt, true);
-    const approx = new cv.Mat();
-    cv.approxPolyDP(cnt, approx, 0.02 * peri, true);
+    // 초기 꼭짓점
+    const pad = 0.06;
+    cropCorners = [
+      {x: Math.round(dispW*pad),     y: Math.round(dispH*pad)},
+      {x: Math.round(dispW*(1-pad)), y: Math.round(dispH*pad)},
+      {x: Math.round(dispW*(1-pad)), y: Math.round(dispH*(1-pad))},
+      {x: Math.round(dispW*pad),     y: Math.round(dispH*(1-pad))},
+    ];
 
-    if (approx.rows === 4 && area > bestArea) {
-      bestArea = area;
-      bestCorners = [];
-      for (let j = 0; j < 4; j++) {
-        bestCorners.push({
-          x: approx.data32S[j * 2],
-          y: approx.data32S[j * 2 + 1]
-        });
+    // 자동 감지
+    autoDetect(dispW, dispH);
+
+    const remaining = cropQueue.length;
+    document.getElementById('cropProgress').textContent = remaining > 0 ? `남은 ${remaining}장` : '';
+
+    drawCrop();
+    bindEvents();
+  }, 50);
+}
+
+function autoDetect(dw, dh) {
+  const {img} = cropCurrent;
+  const tmp = document.createElement('canvas');
+  tmp.width = dw; tmp.height = dh;
+  const ctx = tmp.getContext('2d');
+  ctx.drawImage(img, 0, 0, dw, dh);
+  const d = ctx.getImageData(0, 0, dw, dh).data;
+
+  function br(x, y) {
+    const i=(y*dw+x)*4;
+    return d[i]*0.299 + d[i+1]*0.587 + d[i+2]*0.114;
+  }
+
+  const bgBr = (br(3,3)+br(dw-4,3)+br(3,dh-4)+br(dw-4,dh-4))/4;
+  const thr = 40;
+  let top=Math.round(dh*0.05), bottom=Math.round(dh*0.95);
+  let left=Math.round(dw*0.05), right=Math.round(dw*0.95);
+
+  outer:for(let y=0;y<dh;y++)for(let x=Math.floor(dw*0.1);x<Math.floor(dw*0.9);x++)
+    if(Math.abs(br(x,y)-bgBr)>thr){top=Math.max(0,y-6);break outer;}
+  outer:for(let y=dh-1;y>=0;y--)for(let x=Math.floor(dw*0.1);x<Math.floor(dw*0.9);x++)
+    if(Math.abs(br(x,y)-bgBr)>thr){bottom=Math.min(dh-1,y+6);break outer;}
+  outer:for(let x=0;x<dw;x++)for(let y=Math.floor(dh*0.1);y<Math.floor(dh*0.9);y++)
+    if(Math.abs(br(x,y)-bgBr)>thr){left=Math.max(0,x-6);break outer;}
+  outer:for(let x=dw-1;x>=0;x--)for(let y=Math.floor(dh*0.1);y<Math.floor(dh*0.9);y++)
+    if(Math.abs(br(x,y)-bgBr)>thr){right=Math.min(dw-1,x+6);break outer;}
+
+  if((right-left)>dw*0.25 && (bottom-top)>dh*0.25) {
+    cropCorners = [
+      {x:left, y:top}, {x:right, y:top},
+      {x:right, y:bottom}, {x:left, y:bottom}
+    ];
+  }
+}
+
+function drawCrop() {
+  const c = document.getElementById('cropCanvas');
+  const ctx = c.getContext('2d');
+  const {img} = cropCurrent;
+  ctx.clearRect(0,0,c.width,c.height);
+  ctx.drawImage(img, 0, 0, c.width, c.height);
+
+  // 외부 어둡게
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(0,0,c.width,c.height);
+
+  // 문서 영역 원본으로
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(cropCorners[0].x, cropCorners[0].y);
+  for(let i=1;i<4;i++) ctx.lineTo(cropCorners[i].x, cropCorners[i].y);
+  ctx.closePath();
+  ctx.clip();
+  ctx.drawImage(img, 0, 0, c.width, c.height);
+  ctx.restore();
+
+  // 테두리
+  ctx.strokeStyle = '#4ade80';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(cropCorners[0].x, cropCorners[0].y);
+  for(let i=1;i<4;i++) ctx.lineTo(cropCorners[i].x, cropCorners[i].y);
+  ctx.closePath();
+  ctx.stroke();
+
+  // 변 중간 가이드선
+  ctx.setLineDash([6,4]);
+  ctx.strokeStyle = 'rgba(74,222,128,0.4)';
+  ctx.lineWidth = 1;
+  for(let i=0;i<4;i++){
+    const a=cropCorners[i], b=cropCorners[(i+1)%4];
+    const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
+    ctx.beginPath(); ctx.arc(mx,my,5,0,Math.PI*2); ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  // 꼭짓점 핸들
+  const labels = ['좌상','우상','우하','좌하'];
+  cropCorners.forEach((p,i) => {
+    ctx.beginPath(); ctx.arc(p.x,p.y,22,0,Math.PI*2);
+    ctx.fillStyle='rgba(74,222,128,0.15)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(p.x,p.y,12,0,Math.PI*2);
+    ctx.fillStyle='#4ade80'; ctx.fill();
+    ctx.strokeStyle='#000'; ctx.lineWidth=1.5; ctx.stroke();
+    ctx.fillStyle='#000'; ctx.font='bold 9px sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(i+1, p.x, p.y);
+  });
+}
+
+function bindEvents() {
+  const c = document.getElementById('cropCanvas');
+  const fresh = c.cloneNode(true);
+  c.parentNode.replaceChild(fresh, c);
+  const nc = document.getElementById('cropCanvas');
+  // 이미지 다시 그리기
+  drawCrop();
+
+  function pos(e) {
+    const rect = nc.getBoundingClientRect();
+    const s = e.touches ? e.touches[0] : e;
+    return {x: s.clientX-rect.left, y: s.clientY-rect.top};
+  }
+  function start(e) {
+    e.preventDefault();
+    const p = pos(e); dragIdx = -1;
+    let minD = 50;
+    cropCorners.forEach((c,i) => {
+      const d = Math.hypot(c.x-p.x, c.y-p.y);
+      if(d < minD){ minD=d; dragIdx=i; }
+    });
+  }
+  function move(e) {
+    e.preventDefault();
+    if(dragIdx<0) return;
+    const p = pos(e);
+    cropCorners[dragIdx] = {
+      x: Math.max(0,Math.min(nc.width,p.x)),
+      y: Math.max(0,Math.min(nc.height,p.y))
+    };
+    drawCrop();
+  }
+  function end(){ dragIdx=-1; }
+
+  nc.addEventListener('touchstart',start,{passive:false});
+  nc.addEventListener('touchmove',move,{passive:false});
+  nc.addEventListener('touchend',end);
+  nc.addEventListener('mousedown',start);
+  nc.addEventListener('mousemove',move);
+  nc.addEventListener('mouseup',end);
+}
+
+async function confirmCrop() {
+  document.getElementById('cropOverlay').classList.remove('show');
+  showLoading('문서 처리 중...');
+  const {img, w, h} = cropCurrent;
+  const c = document.getElementById('cropCanvas');
+  const sc = w / c.width;
+  const real = cropCorners.map(p => ({x:p.x*sc, y:p.y*sc}));
+  const result = await perspectiveWarp(img, real, w, h);
+  pages.push(result);
+  render();
+  hideLoading();
+  showToast('추가됐어요!');
+  if(cropQueue.length>0) setTimeout(processNextCrop,300);
+}
+
+function skipCrop() {
+  document.getElementById('cropOverlay').classList.remove('show');
+  showLoading('처리 중...');
+  const {img,w,h} = cropCurrent;
+  const canvas = document.createElement('canvas');
+  canvas.width=w; canvas.height=h;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle='#fff'; ctx.fillRect(0,0,w,h);
+  ctx.drawImage(img,0,0,w,h);
+  const id = ctx.getImageData(0,0,w,h);
+  enhanceDoc(id);
+  ctx.putImageData(id,0,0);
+  pages.push({dataUrl:canvas.toDataURL('image/jpeg',0.93),width:w,height:h});
+  render(); hideLoading(); showToast('추가됐어요!');
+  if(cropQueue.length>0) setTimeout(processNextCrop,300);
+}
+
+// ── 원근 보정 ─────────────────────────────────────
+function perspectiveWarp(img, corners, w, h) {
+  return new Promise(resolve => {
+    const cx=corners.reduce((s,p)=>s+p.x,0)/4;
+    const cy=corners.reduce((s,p)=>s+p.y,0)/4;
+    const sorted = [
+      corners.find(p=>p.x<=cx&&p.y<=cy)||corners[0],
+      corners.find(p=>p.x>cx&&p.y<=cy)||corners[1],
+      corners.find(p=>p.x>cx&&p.y>cy)||corners[2],
+      corners.find(p=>p.x<=cx&&p.y>cy)||corners[3],
+    ];
+    const outW = Math.round(Math.max(
+      Math.hypot(sorted[1].x-sorted[0].x,sorted[1].y-sorted[0].y),
+      Math.hypot(sorted[2].x-sorted[3].x,sorted[2].y-sorted[3].y)
+    ));
+    const outH = Math.round(Math.max(
+      Math.hypot(sorted[3].x-sorted[0].x,sorted[3].y-sorted[0].y),
+      Math.hypot(sorted[2].x-sorted[1].x,sorted[2].y-sorted[1].y)
+    ));
+
+    const src = sorted;
+    const dst = [{x:0,y:0},{x:outW,y:0},{x:outW,y:outH},{x:0,y:outH}];
+    const M = getPerspective(src,dst);
+    const Minv = invert3x3(M);
+
+    const srcC = document.createElement('canvas');
+    srcC.width=w; srcC.height=h;
+    srcC.getContext('2d').drawImage(img,0,0,w,h);
+    const srcCtx = srcC.getContext('2d');
+
+    const outC = document.createElement('canvas');
+    outC.width=outW; outC.height=outH;
+    const outCtx = outC.getContext('2d');
+    outCtx.fillStyle='#fff'; outCtx.fillRect(0,0,outW,outH);
+    const outId = outCtx.createImageData(outW,outH);
+
+    for(let y=0;y<outH;y++) {
+      for(let x=0;x<outW;x++) {
+        const denom = Minv[6]*x+Minv[7]*y+Minv[8];
+        const sx = (Minv[0]*x+Minv[1]*y+Minv[2])/denom;
+        const sy = (Minv[3]*x+Minv[4]*y+Minv[5])/denom;
+        const di = (y*outW+x)*4;
+        if(sx>=0&&sx<w&&sy>=0&&sy<h) {
+          const sd = srcCtx.getImageData(Math.round(sx),Math.round(sy),1,1).data;
+          outId.data[di]=sd[0];outId.data[di+1]=sd[1];outId.data[di+2]=sd[2];outId.data[di+3]=255;
+        } else {
+          outId.data[di]=255;outId.data[di+1]=255;outId.data[di+2]=255;outId.data[di+3]=255;
+        }
       }
     }
-    approx.delete();
-    cnt.delete();
-  }
-
-  let result;
-  if (bestCorners && bestCorners.length === 4) {
-    // 원근 보정 적용
-    result = applyPerspectiveCorrection(src, bestCorners, w, h);
-  } else {
-    // 사각형 못 찾으면 기본 크롭
-    result = processBasic(srcCanvas, w, h);
-  }
-
-  // 메모리 해제
-  src.delete(); gray.delete(); blurred.delete();
-  edges.delete(); contours.delete(); hierarchy.delete();
-
-  return result;
+    outCtx.putImageData(outId,0,0);
+    const enhanced = outCtx.getImageData(0,0,outW,outH);
+    enhanceDoc(enhanced);
+    outCtx.putImageData(enhanced,0,0);
+    resolve({dataUrl:outC.toDataURL('image/jpeg',0.93),width:outW,height:outH});
+  });
 }
 
-function applyPerspectiveCorrection(src, corners, w, h) {
-  // 꼭짓점 정렬 (좌상, 우상, 우하, 좌하)
-  const sorted = sortCorners(corners);
-
-  // 출력 크기 계산
-  const wTop = Math.hypot(sorted[1].x - sorted[0].x, sorted[1].y - sorted[0].y);
-  const wBot = Math.hypot(sorted[2].x - sorted[3].x, sorted[2].y - sorted[3].y);
-  const hLeft = Math.hypot(sorted[3].x - sorted[0].x, sorted[3].y - sorted[0].y);
-  const hRight = Math.hypot(sorted[2].x - sorted[1].x, sorted[2].y - sorted[1].y);
-  const outW = Math.round(Math.max(wTop, wBot));
-  const outH = Math.round(Math.max(hLeft, hRight));
-
-  const srcPts = cv.matFromArray(4, 1, cv.CV_32FC2, [
-    sorted[0].x, sorted[0].y,
-    sorted[1].x, sorted[1].y,
-    sorted[2].x, sorted[2].y,
-    sorted[3].x, sorted[3].y
-  ]);
-  const dstPts = cv.matFromArray(4, 1, cv.CV_32FC2, [
-    0, 0, outW, 0, outW, outH, 0, outH
-  ]);
-
-  const M = cv.getPerspectiveTransform(srcPts, dstPts);
-  const warped = new cv.Mat();
-  const dsize = new cv.Size(outW, outH);
-  cv.warpPerspective(src, warped, M, dsize, cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar(255,255,255,255));
-
-  // 결과 캔버스로 변환
-  const outCanvas = document.createElement('canvas');
-  outCanvas.width = outW; outCanvas.height = outH;
-  cv.imshow(outCanvas, warped);
-
-  // 배경 제거 및 대비 강화
-  const ctx = outCanvas.getContext('2d');
-  const imgData = ctx.getImageData(0, 0, outW, outH);
-  enhanceDocument(imgData);
-  ctx.putImageData(imgData, 0, 0);
-
-  srcPts.delete(); dstPts.delete(); M.delete(); warped.delete();
-
-  return { dataUrl: outCanvas.toDataURL('image/jpeg', 0.93), width: outW, height: outH };
+function getPerspective(src,dst) {
+  const A=[],b=[];
+  for(let i=0;i<4;i++){
+    const {x:sx,y:sy}=src[i],{x:dx,y:dy}=dst[i];
+    A.push([sx,sy,1,0,0,0,-dx*sx,-dx*sy]);b.push(dx);
+    A.push([0,0,0,sx,sy,1,-dy*sx,-dy*sy]);b.push(dy);
+  }
+  const h=gaussElim(A,b);
+  return [...h,1];
 }
 
-function sortCorners(pts) {
-  // 무게중심 기준으로 정렬
-  const cx = pts.reduce((s,p) => s + p.x, 0) / 4;
-  const cy = pts.reduce((s,p) => s + p.y, 0) / 4;
-  const tl = pts.filter(p => p.x < cx && p.y < cy)[0] || pts[0];
-  const tr = pts.filter(p => p.x >= cx && p.y < cy)[0] || pts[1];
-  const br = pts.filter(p => p.x >= cx && p.y >= cy)[0] || pts[2];
-  const bl = pts.filter(p => p.x < cx && p.y >= cy)[0] || pts[3];
-  return [tl, tr, br, bl].map(p => p || {x:0,y:0});
+function gaussElim(A,b) {
+  const n=b.length;
+  for(let c=0;c<n;c++){
+    let mr=c;
+    for(let r=c+1;r<n;r++) if(Math.abs(A[r][c])>Math.abs(A[mr][c]))mr=r;
+    [A[c],A[mr]]=[A[mr],A[c]];[b[c],b[mr]]=[b[mr],b[c]];
+    for(let r=c+1;r<n;r++){
+      const f=A[r][c]/A[c][c];
+      for(let k=c;k<n;k++)A[r][k]-=f*A[c][k];
+      b[r]-=f*b[c];
+    }
+  }
+  const x=new Array(n).fill(0);
+  for(let i=n-1;i>=0;i--){
+    x[i]=b[i]/A[i][i];
+    for(let k=i-1;k>=0;k--)b[k]-=A[k][i]*x[i];
+  }
+  return x;
 }
 
-function processBasic(srcCanvas, w, h) {
-  // OpenCV 없을 때 기본 처리 (경계 탐지 + 대비 강화)
-  const ctx = srcCanvas.getContext('2d');
-  const imageData = ctx.getImageData(0, 0, w, h);
-  const { top, bottom, left, right } = findDocumentBounds(imageData, w, h);
-
-  const pad = 15;
-  const cx = Math.max(0, left - pad);
-  const cy = Math.max(0, top - pad);
-  const cw = Math.min(w, right + pad) - cx;
-  const ch = Math.min(h, bottom + pad) - cy;
-
-  const outCanvas = document.createElement('canvas');
-  outCanvas.width = cw; outCanvas.height = ch;
-  const outCtx = outCanvas.getContext('2d');
-  outCtx.fillStyle = '#ffffff';
-  outCtx.fillRect(0, 0, cw, ch);
-  outCtx.drawImage(srcCanvas, cx, cy, cw, ch, 0, 0, cw, ch);
-
-  const cropData = outCtx.getImageData(0, 0, cw, ch);
-  enhanceDocument(cropData);
-  outCtx.putImageData(cropData, 0, 0);
-
-  return { dataUrl: outCanvas.toDataURL('image/jpeg', 0.93), width: cw, height: ch };
+function invert3x3(m) {
+  const det=m[0]*(m[4]*m[8]-m[5]*m[7])-m[1]*(m[3]*m[8]-m[5]*m[6])+m[2]*(m[3]*m[7]-m[4]*m[6]);
+  return [
+    (m[4]*m[8]-m[5]*m[7])/det,(m[2]*m[7]-m[1]*m[8])/det,(m[1]*m[5]-m[2]*m[4])/det,
+    (m[5]*m[6]-m[3]*m[8])/det,(m[0]*m[8]-m[2]*m[6])/det,(m[2]*m[3]-m[0]*m[5])/det,
+    (m[3]*m[7]-m[4]*m[6])/det,(m[1]*m[6]-m[0]*m[7])/det,(m[0]*m[4]-m[1]*m[3])/det,
+  ];
 }
 
-function findDocumentBounds(imageData, w, h) {
-  const data = imageData.data;
-  function brightness(x, y) {
-    const i = (y * w + x) * 4;
-    return (data[i] + data[i+1] + data[i+2]) / 3;
-  }
-  const corners = [brightness(5,5), brightness(w-6,5), brightness(5,h-6), brightness(w-6,h-6)];
-  const bgBrightness = corners.reduce((a,b) => a+b, 0) / 4;
-  const threshold = 35;
-  let top = 0, bottom = h-1, left = 0, right = w-1;
-
-  outer: for (let y = 0; y < h; y++) {
-    for (let x = Math.floor(w*0.1); x < Math.floor(w*0.9); x++) {
-      if (Math.abs(brightness(x,y) - bgBrightness) > threshold) { top = Math.max(0,y-5); break outer; }
-    }
-  }
-  outer: for (let y = h-1; y >= 0; y--) {
-    for (let x = Math.floor(w*0.1); x < Math.floor(w*0.9); x++) {
-      if (Math.abs(brightness(x,y) - bgBrightness) > threshold) { bottom = Math.min(h-1,y+5); break outer; }
-    }
-  }
-  outer: for (let x = 0; x < w; x++) {
-    for (let y = Math.floor(h*0.1); y < Math.floor(h*0.9); y++) {
-      if (Math.abs(brightness(x,y) - bgBrightness) > threshold) { left = Math.max(0,x-5); break outer; }
-    }
-  }
-  outer: for (let x = w-1; x >= 0; x--) {
-    for (let y = Math.floor(h*0.1); y < Math.floor(h*0.9); y++) {
-      if (Math.abs(brightness(x,y) - bgBrightness) > threshold) { right = Math.min(w-1,x+5); break outer; }
-    }
-  }
-  if ((right-left) < w*0.3 || (bottom-top) < h*0.3) return {top:0, bottom:h-1, left:0, right:w-1};
-  return { top, bottom, left, right };
-}
-
-function enhanceDocument(imageData) {
-  const data = imageData.data;
-  // 상위 10% 밝기를 흰색 기준으로 설정
-  const brightnesses = [];
-  for (let i = 0; i < data.length; i += 4) {
-    brightnesses.push((data[i] + data[i+1] + data[i+2]) / 3);
-  }
-  brightnesses.sort((a,b) => a-b);
-  const p10 = brightnesses[Math.floor(brightnesses.length * 0.05)] || 0;
-  const p90 = brightnesses[Math.floor(brightnesses.length * 0.95)] || 255;
-  const range = p90 - p10 || 1;
-
-  for (let i = 0; i < data.length; i += 4) {
-    let r = data[i], g = data[i+1], b = data[i+2];
-    // 자동 레벨
-    r = Math.min(255, Math.max(0, Math.round(((r - p10) / range) * 255)));
-    g = Math.min(255, Math.max(0, Math.round(((g - p10) / range) * 255)));
-    b = Math.min(255, Math.max(0, Math.round(((b - p10) / range) * 255)));
-    const br = (r + g + b) / 3;
-    if (br > 160) {
-      data[i] = 255; data[i+1] = 255; data[i+2] = 255;
-    } else if (br < 90) {
-      data[i] = Math.round(r * 0.5);
-      data[i+1] = Math.round(g * 0.5);
-      data[i+2] = Math.round(b * 0.5);
-    } else {
-      data[i] = r; data[i+1] = g; data[i+2] = b;
-    }
+function enhanceDoc(imageData) {
+  const d=imageData.data,len=d.length;
+  const brs=new Float32Array(len/4);
+  for(let i=0,j=0;i<len;i+=4,j++) brs[j]=d[i]*0.299+d[i+1]*0.587+d[i+2]*0.114;
+  const s=Float32Array.from(brs).sort();
+  const p05=s[Math.floor(s.length*0.05)];
+  const p95=s[Math.floor(s.length*0.95)];
+  const range=p95-p05||1;
+  for(let i=0;i<len;i+=4){
+    let r=d[i],g=d[i+1],b=d[i+2];
+    r=Math.min(255,Math.max(0,Math.round(((r-p05)/range)*255)));
+    g=Math.min(255,Math.max(0,Math.round(((g-p05)/range)*255)));
+    b=Math.min(255,Math.max(0,Math.round(((b-p05)/range)*255)));
+    const br=r*0.299+g*0.587+b*0.114;
+    if(br>145){d[i]=255;d[i+1]=255;d[i+2]=255;}
+    else if(br<90){d[i]=Math.round(r*0.4);d[i+1]=Math.round(g*0.4);d[i+2]=Math.round(b*0.4);}
+    else{const t=(br-90)/55;d[i]=Math.round(r+(255-r)*t);d[i+1]=Math.round(g+(255-g)*t);d[i+2]=Math.round(b+(255-b)*t);}
   }
 }
 
 function render() {
-  const empty = document.getElementById('emptyState');
-  const grid = document.getElementById('pagesGrid');
-  const count = document.getElementById('pageCount');
-  const btnPdf = document.getElementById('btnPdf');
-
-  count.textContent = `${pages.length} 페이지`;
-
-  if (!pages.length) {
-    empty.style.display = 'flex';
-    grid.style.display = 'none';
-    btnPdf.disabled = true;
-    btnPdf.classList.remove('ready');
-    btnPdf.textContent = '📑 PDF 저장';
-    return;
+  const empty=document.getElementById('emptyState');
+  const grid=document.getElementById('pagesGrid');
+  const count=document.getElementById('pageCount');
+  const btn=document.getElementById('btnPdf');
+  count.textContent=pages.length+' 페이지';
+  if(!pages.length){
+    empty.style.display='flex';grid.style.display='none';
+    btn.disabled=true;btn.classList.remove('ready');btn.innerHTML='📑 PDF 저장';return;
   }
-
-  empty.style.display = 'none';
-  grid.style.display = 'grid';
-  btnPdf.disabled = false;
-  btnPdf.classList.add('ready');
-  btnPdf.innerHTML = `📑 PDF 저장 (${pages.length}장)`;
-
-  grid.innerHTML = pages.map((p, i) => `
+  empty.style.display='none';grid.style.display='grid';
+  btn.disabled=false;btn.classList.add('ready');
+  btn.innerHTML=`📑 PDF 저장 (${pages.length}장)`;
+  grid.innerHTML=pages.map((p,i)=>`
     <div class="page-item">
-      <img src="${p.dataUrl}" alt="페이지 ${i+1}">
+      <img src="${p.dataUrl}" alt="${i+1}">
       <div class="page-num">${i+1}</div>
       <button class="page-delete" onclick="deletePage(${i})">✕</button>
-    </div>
-  `).join('');
+    </div>`).join('');
 }
 
-function deletePage(idx) {
-  pages.splice(idx, 1);
-  render();
-  showToast('삭제했어요');
-}
+function deletePage(i){pages.splice(i,1);render();showToast('삭제했어요');}
 
 async function exportPdf() {
-  if (!pages.length) return;
+  if(!pages.length)return;
   showLoading('PDF 생성 중...');
-
   try {
-    await new Promise(r => setTimeout(r, 100));
-    const { jsPDF } = window.jspdf;
-
-    const first = pages[0];
-    const isLandscape = first.width > first.height;
-    const orientation = isLandscape ? 'landscape' : 'portrait';
-
-    const pdf = new jsPDF({ orientation, unit: 'px', hotfixes: ['px_scaling'] });
-
-    for (let i = 0; i < pages.length; i++) {
-      const p = pages[i];
-      if (i > 0) {
-        const isL = p.width > p.height;
-        pdf.addPage([p.width, p.height], isL ? 'landscape' : 'portrait');
-      }
-      pdf.setPage(i + 1);
-      const pw = pdf.internal.pageSize.getWidth();
-      const ph = pdf.internal.pageSize.getHeight();
-      pdf.addImage(p.dataUrl, 'JPEG', 0, 0, pw, ph, '', 'FAST');
+    await new Promise(r=>setTimeout(r,100));
+    const {jsPDF}=window.jspdf;
+    const f=pages[0];
+    const pdf=new jsPDF({orientation:f.width>f.height?'landscape':'portrait',unit:'px',hotfixes:['px_scaling']});
+    for(let i=0;i<pages.length;i++){
+      const p=pages[i];
+      if(i>0)pdf.addPage([p.width,p.height],p.width>p.height?'landscape':'portrait');
+      pdf.setPage(i+1);
+      const pw=pdf.internal.pageSize.getWidth(),ph=pdf.internal.pageSize.getHeight();
+      pdf.addImage(p.dataUrl,'JPEG',0,0,pw,ph,'','FAST');
     }
-
-    const now = new Date();
-    const fname = `scan_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}.pdf`;
-    pdf.save(fname);
-
-    hideLoading();
-    showToast('PDF 저장 완료!');
-  } catch(e) {
-    hideLoading();
-    showToast('오류: ' + e.message);
-  }
+    const n=new Date();
+    pdf.save(`scan_${n.getFullYear()}${String(n.getMonth()+1).padStart(2,'0')}${String(n.getDate()).padStart(2,'0')}_${String(n.getHours()).padStart(2,'0')}${String(n.getMinutes()).padStart(2,'0')}.pdf`);
+    hideLoading();showToast('PDF 저장 완료!');
+  } catch(e){hideLoading();showToast('오류: '+e.message);}
 }
 
-function showLoading(text) {
-  document.getElementById('loadingText').textContent = text;
-  document.getElementById('loadingOverlay').classList.add('show');
-}
-function hideLoading() {
-  document.getElementById('loadingOverlay').classList.remove('show');
-}
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2500);
-}
+function showLoading(t){document.getElementById('loadingText').textContent=t;document.getElementById('loadingOverlay').classList.add('show');}
+function hideLoading(){document.getElementById('loadingOverlay').classList.remove('show');}
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
 
-// 서비스 워커 등록
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
-}
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>
 </body>
 </html>
