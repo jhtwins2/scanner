@@ -295,6 +295,8 @@
 
 <!-- jsPDF -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<!-- OpenCV.js -->
+<script async src="https://docs.opencv.org/4.8.0/opencv.js" onload="onOpenCvReady()" onerror="cvFailed()"></script>
 
 <script>
 let pages = []; // { dataUrl, width, height }
@@ -324,6 +326,12 @@ async function handleFiles(input) {
   showToast(`${files.length}장 추가됐어요`);
 }
 
+// ─── OpenCV 준비 상태 ────────────────────────────
+let cvReady = false;
+function onOpenCvReady() { cvReady = true; console.log('OpenCV 준비됨'); }
+function cvFailed() { cvReady = false; console.log('OpenCV 로드 실패, 기본 모드 사용'); }
+
+// ─── 이미지 처리 (OpenCV 원근보정 + 배경제거) ────
 function processImage(file) {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -338,41 +346,22 @@ function processImage(file) {
           h = Math.round(h * ratio);
         }
 
-        // 1단계: 원본 캔버스
-        const srcCanvas = document.createElement('canvas');
-        srcCanvas.width = w; srcCanvas.height = h;
-        const srcCtx = srcCanvas.getContext('2d');
-        srcCtx.drawImage(img, 0, 0, w, h);
-        const srcData = srcCtx.getImageData(0, 0, w, h);
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
 
-        // 2단계: 문서 영역 찾기 (가장자리에서 안쪽으로 탐색)
-        const { top, bottom, left, right } = findDocumentBounds(srcData, w, h);
-
-        // 여백 추가
-        const pad = 20;
-        const cx = Math.max(0, left - pad);
-        const cy = Math.max(0, top - pad);
-        const cw = Math.min(w, right + pad) - cx;
-        const ch = Math.min(h, bottom + pad) - cy;
-
-        // 3단계: 문서 영역만 잘라내기
-        const cropCanvas = document.createElement('canvas');
-        cropCanvas.width = cw; cropCanvas.height = ch;
-        const cropCtx = cropCanvas.getContext('2d');
-        cropCtx.fillStyle = '#ffffff';
-        cropCtx.fillRect(0, 0, cw, ch);
-        cropCtx.drawImage(srcCanvas, cx, cy, cw, ch, 0, 0, cw, ch);
-
-        // 4단계: 보정 (대비 강화 + 배경 백색화)
-        const cropData = cropCtx.getImageData(0, 0, cw, ch);
-        enhanceDocument(cropData);
-        cropCtx.putImageData(cropData, 0, 0);
-
-        resolve({
-          dataUrl: cropCanvas.toDataURL('image/jpeg', 0.93),
-          width: cw,
-          height: ch
-        });
+        if (cvReady && typeof cv !== 'undefined' && cv.Mat) {
+          try {
+            const result = processWithOpenCV(canvas, w, h);
+            resolve(result);
+            return;
+          } catch(e) {
+            console.log('OpenCV 처리 실패, 기본 모드로 전환:', e);
+          }
+        }
+        // OpenCV 없으면 기본 처리
+        resolve(processBasic(canvas, w, h));
       };
       img.src = e.target.result;
     };
@@ -380,94 +369,206 @@ function processImage(file) {
   });
 }
 
+function processWithOpenCV(srcCanvas, w, h) {
+  const src = cv.imread(srcCanvas);
+  const gray = new cv.Mat();
+  const blurred = new cv.Mat();
+  const edges = new cv.Mat();
+
+  // 그레이스케일 + 블러 + 엣지 검출
+  cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+  cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
+  cv.Canny(blurred, edges, 30, 100);
+
+  // 윤곽선 찾기
+  const contours = new cv.MatVector();
+  const hierarchy = new cv.Mat();
+  cv.findContours(edges, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+
+  // 가장 큰 사각형 윤곽선 찾기
+  let bestCorners = null;
+  let bestArea = 0;
+  const minArea = w * h * 0.1;
+
+  for (let i = 0; i < contours.size(); i++) {
+    const cnt = contours.get(i);
+    const area = cv.contourArea(cnt);
+    if (area < minArea) { cnt.delete(); continue; }
+
+    const peri = cv.arcLength(cnt, true);
+    const approx = new cv.Mat();
+    cv.approxPolyDP(cnt, approx, 0.02 * peri, true);
+
+    if (approx.rows === 4 && area > bestArea) {
+      bestArea = area;
+      bestCorners = [];
+      for (let j = 0; j < 4; j++) {
+        bestCorners.push({
+          x: approx.data32S[j * 2],
+          y: approx.data32S[j * 2 + 1]
+        });
+      }
+    }
+    approx.delete();
+    cnt.delete();
+  }
+
+  let result;
+  if (bestCorners && bestCorners.length === 4) {
+    // 원근 보정 적용
+    result = applyPerspectiveCorrection(src, bestCorners, w, h);
+  } else {
+    // 사각형 못 찾으면 기본 크롭
+    result = processBasic(srcCanvas, w, h);
+  }
+
+  // 메모리 해제
+  src.delete(); gray.delete(); blurred.delete();
+  edges.delete(); contours.delete(); hierarchy.delete();
+
+  return result;
+}
+
+function applyPerspectiveCorrection(src, corners, w, h) {
+  // 꼭짓점 정렬 (좌상, 우상, 우하, 좌하)
+  const sorted = sortCorners(corners);
+
+  // 출력 크기 계산
+  const wTop = Math.hypot(sorted[1].x - sorted[0].x, sorted[1].y - sorted[0].y);
+  const wBot = Math.hypot(sorted[2].x - sorted[3].x, sorted[2].y - sorted[3].y);
+  const hLeft = Math.hypot(sorted[3].x - sorted[0].x, sorted[3].y - sorted[0].y);
+  const hRight = Math.hypot(sorted[2].x - sorted[1].x, sorted[2].y - sorted[1].y);
+  const outW = Math.round(Math.max(wTop, wBot));
+  const outH = Math.round(Math.max(hLeft, hRight));
+
+  const srcPts = cv.matFromArray(4, 1, cv.CV_32FC2, [
+    sorted[0].x, sorted[0].y,
+    sorted[1].x, sorted[1].y,
+    sorted[2].x, sorted[2].y,
+    sorted[3].x, sorted[3].y
+  ]);
+  const dstPts = cv.matFromArray(4, 1, cv.CV_32FC2, [
+    0, 0, outW, 0, outW, outH, 0, outH
+  ]);
+
+  const M = cv.getPerspectiveTransform(srcPts, dstPts);
+  const warped = new cv.Mat();
+  const dsize = new cv.Size(outW, outH);
+  cv.warpPerspective(src, warped, M, dsize, cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar(255,255,255,255));
+
+  // 결과 캔버스로 변환
+  const outCanvas = document.createElement('canvas');
+  outCanvas.width = outW; outCanvas.height = outH;
+  cv.imshow(outCanvas, warped);
+
+  // 배경 제거 및 대비 강화
+  const ctx = outCanvas.getContext('2d');
+  const imgData = ctx.getImageData(0, 0, outW, outH);
+  enhanceDocument(imgData);
+  ctx.putImageData(imgData, 0, 0);
+
+  srcPts.delete(); dstPts.delete(); M.delete(); warped.delete();
+
+  return { dataUrl: outCanvas.toDataURL('image/jpeg', 0.93), width: outW, height: outH };
+}
+
+function sortCorners(pts) {
+  // 무게중심 기준으로 정렬
+  const cx = pts.reduce((s,p) => s + p.x, 0) / 4;
+  const cy = pts.reduce((s,p) => s + p.y, 0) / 4;
+  const tl = pts.filter(p => p.x < cx && p.y < cy)[0] || pts[0];
+  const tr = pts.filter(p => p.x >= cx && p.y < cy)[0] || pts[1];
+  const br = pts.filter(p => p.x >= cx && p.y >= cy)[0] || pts[2];
+  const bl = pts.filter(p => p.x < cx && p.y >= cy)[0] || pts[3];
+  return [tl, tr, br, bl].map(p => p || {x:0,y:0});
+}
+
+function processBasic(srcCanvas, w, h) {
+  // OpenCV 없을 때 기본 처리 (경계 탐지 + 대비 강화)
+  const ctx = srcCanvas.getContext('2d');
+  const imageData = ctx.getImageData(0, 0, w, h);
+  const { top, bottom, left, right } = findDocumentBounds(imageData, w, h);
+
+  const pad = 15;
+  const cx = Math.max(0, left - pad);
+  const cy = Math.max(0, top - pad);
+  const cw = Math.min(w, right + pad) - cx;
+  const ch = Math.min(h, bottom + pad) - cy;
+
+  const outCanvas = document.createElement('canvas');
+  outCanvas.width = cw; outCanvas.height = ch;
+  const outCtx = outCanvas.getContext('2d');
+  outCtx.fillStyle = '#ffffff';
+  outCtx.fillRect(0, 0, cw, ch);
+  outCtx.drawImage(srcCanvas, cx, cy, cw, ch, 0, 0, cw, ch);
+
+  const cropData = outCtx.getImageData(0, 0, cw, ch);
+  enhanceDocument(cropData);
+  outCtx.putImageData(cropData, 0, 0);
+
+  return { dataUrl: outCanvas.toDataURL('image/jpeg', 0.93), width: cw, height: ch };
+}
+
 function findDocumentBounds(imageData, w, h) {
   const data = imageData.data;
-
-  // 각 픽셀의 밝기 계산
   function brightness(x, y) {
     const i = (y * w + x) * 4;
     return (data[i] + data[i+1] + data[i+2]) / 3;
   }
-
-  // 샘플링으로 배경 밝기 추정 (네 모서리 평균)
-  const corners = [
-    brightness(5, 5), brightness(w-6, 5),
-    brightness(5, h-6), brightness(w-6, h-6)
-  ];
+  const corners = [brightness(5,5), brightness(w-6,5), brightness(5,h-6), brightness(w-6,h-6)];
   const bgBrightness = corners.reduce((a,b) => a+b, 0) / 4;
-  const isDarkBg = bgBrightness < 128;
-
-  // 문서 경계 찾기 (배경과 다른 영역)
-  const threshold = 40;
+  const threshold = 35;
   let top = 0, bottom = h-1, left = 0, right = w-1;
 
-  // top
   outer: for (let y = 0; y < h; y++) {
-    for (let x = Math.floor(w*0.2); x < Math.floor(w*0.8); x++) {
-      const diff = Math.abs(brightness(x, y) - bgBrightness);
-      if (diff > threshold) { top = Math.max(0, y - 10); break outer; }
+    for (let x = Math.floor(w*0.1); x < Math.floor(w*0.9); x++) {
+      if (Math.abs(brightness(x,y) - bgBrightness) > threshold) { top = Math.max(0,y-5); break outer; }
     }
   }
-  // bottom
   outer: for (let y = h-1; y >= 0; y--) {
-    for (let x = Math.floor(w*0.2); x < Math.floor(w*0.8); x++) {
-      const diff = Math.abs(brightness(x, y) - bgBrightness);
-      if (diff > threshold) { bottom = Math.min(h-1, y + 10); break outer; }
+    for (let x = Math.floor(w*0.1); x < Math.floor(w*0.9); x++) {
+      if (Math.abs(brightness(x,y) - bgBrightness) > threshold) { bottom = Math.min(h-1,y+5); break outer; }
     }
   }
-  // left
   outer: for (let x = 0; x < w; x++) {
-    for (let y = Math.floor(h*0.2); y < Math.floor(h*0.8); y++) {
-      const diff = Math.abs(brightness(x, y) - bgBrightness);
-      if (diff > threshold) { left = Math.max(0, x - 10); break outer; }
+    for (let y = Math.floor(h*0.1); y < Math.floor(h*0.9); y++) {
+      if (Math.abs(brightness(x,y) - bgBrightness) > threshold) { left = Math.max(0,x-5); break outer; }
     }
   }
-  // right
   outer: for (let x = w-1; x >= 0; x--) {
-    for (let y = Math.floor(h*0.2); y < Math.floor(h*0.8); y++) {
-      const diff = Math.abs(brightness(x, y) - bgBrightness);
-      if (diff > threshold) { right = Math.min(w-1, x + 10); break outer; }
+    for (let y = Math.floor(h*0.1); y < Math.floor(h*0.9); y++) {
+      if (Math.abs(brightness(x,y) - bgBrightness) > threshold) { right = Math.min(w-1,x+5); break outer; }
     }
   }
-
-  // 너무 작게 잘리면 전체 사용
-  if ((right - left) < w * 0.3 || (bottom - top) < h * 0.3) {
-    return { top: 0, bottom: h-1, left: 0, right: w-1 };
-  }
-
+  if ((right-left) < w*0.3 || (bottom-top) < h*0.3) return {top:0, bottom:h-1, left:0, right:w-1};
   return { top, bottom, left, right };
 }
 
 function enhanceDocument(imageData) {
   const data = imageData.data;
-
-  // 밝기 히스토그램으로 자동 레벨 조정
-  let minB = 255, maxB = 0;
+  // 상위 10% 밝기를 흰색 기준으로 설정
+  const brightnesses = [];
   for (let i = 0; i < data.length; i += 4) {
-    const b = (data[i] + data[i+1] + data[i+2]) / 3;
-    if (b < minB) minB = b;
-    if (b > maxB) maxB = b;
+    brightnesses.push((data[i] + data[i+1] + data[i+2]) / 3);
   }
-  const range = maxB - minB || 1;
+  brightnesses.sort((a,b) => a-b);
+  const p10 = brightnesses[Math.floor(brightnesses.length * 0.05)] || 0;
+  const p90 = brightnesses[Math.floor(brightnesses.length * 0.95)] || 255;
+  const range = p90 - p10 || 1;
 
   for (let i = 0; i < data.length; i += 4) {
     let r = data[i], g = data[i+1], b = data[i+2];
-
-    // 자동 레벨 (대비 강화)
-    r = Math.round(((r - minB) / range) * 255);
-    g = Math.round(((g - minB) / range) * 255);
-    b = Math.round(((b - minB) / range) * 255);
-
-    const brightness = (r + g + b) / 3;
-
-    // 밝은 영역 → 완전 흰색
-    if (brightness > 180) {
+    // 자동 레벨
+    r = Math.min(255, Math.max(0, Math.round(((r - p10) / range) * 255)));
+    g = Math.min(255, Math.max(0, Math.round(((g - p10) / range) * 255)));
+    b = Math.min(255, Math.max(0, Math.round(((b - p10) / range) * 255)));
+    const br = (r + g + b) / 3;
+    if (br > 160) {
       data[i] = 255; data[i+1] = 255; data[i+2] = 255;
-    } else if (brightness < 80) {
-      // 어두운 글자 → 더 진하게
-      data[i] = Math.round(r * 0.6);
-      data[i+1] = Math.round(g * 0.6);
-      data[i+2] = Math.round(b * 0.6);
+    } else if (br < 90) {
+      data[i] = Math.round(r * 0.5);
+      data[i+1] = Math.round(g * 0.5);
+      data[i+2] = Math.round(b * 0.5);
     } else {
       data[i] = r; data[i+1] = g; data[i+2] = b;
     }
