@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0f0f0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="스캐너">
+<link rel="manifest" href="manifest.json">
+<title>문서 스캐너</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  :root {
+    --bg: #0f0f0f;
+    --bg2: #1a1a1a;
+    --bg3: #242424;
+    --border: #2e2e2e;
+    --accent: #ffffff;
+    --accent2: #a0a0a0;
+    --green: #4ade80;
+    --red: #f87171;
+    --text: #ffffff;
+    --text2: #a0a0a0;
+    --text3: #555;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans KR', sans-serif;
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
+    overflow-x: hidden;
+    user-select: none;
+  }
+
+  /* 헤더 */
+  .header {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    background: rgba(15,15,15,0.95);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .header-title { font-size: 17px; font-weight: 700; letter-spacing: -0.02em; }
+  .page-count {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--text2);
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 20px;
+  }
+
+  /* 메인 */
+  .main {
+    padding-top: 70px;
+    padding-bottom: 160px;
+    min-height: 100vh;
+  }
+
+  /* 빈 상태 */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: calc(100vh - 230px);
+    padding: 40px 20px;
+    text-align: center;
+  }
+  .empty-icon {
+    width: 80px; height: 80px;
+    border: 2px dashed var(--border);
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    margin-bottom: 20px;
+    color: var(--text3);
+  }
+  .empty-title { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+  .empty-sub { font-size: 14px; color: var(--text2); line-height: 1.6; }
+
+  /* 페이지 그리드 */
+  .pages-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .page-item {
+    position: relative;
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    aspect-ratio: 3/4;
+  }
+  .page-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .page-num {
+    position: absolute;
+    bottom: 8px; left: 8px;
+    background: rgba(0,0,0,0.7);
+    color: #fff;
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 10px;
+    font-weight: 500;
+  }
+  .page-delete {
+    position: absolute;
+    top: 8px; right: 8px;
+    background: rgba(0,0,0,0.7);
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 28px; height: 28px;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* 하단 버튼 영역 */
+  .bottom-bar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: rgba(15,15,15,0.97);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-top: 1px solid var(--border);
+    padding: 16px 20px;
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+
+  .btn-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .btn {
+    flex: 1;
+    padding: 14px;
+    border: none;
+    border-radius: 12px;
+    font-size: 15px;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .btn:active { transform: scale(0.97); }
+
+  .btn-camera {
+    background: var(--text);
+    color: var(--bg);
+    font-size: 16px;
+  }
+  .btn-gallery {
+    background: var(--bg3);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+
+  .btn-pdf {
+    width: 100%;
+    padding: 15px;
+    background: linear-gradient(135deg, #1a1a1a, #2a2a2a);
+    color: var(--text);
+    border: 1px solid #3a3a3a;
+    border-radius: 12px;
+    font-size: 15px;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .btn-pdf:active { transform: scale(0.98); }
+  .btn-pdf:disabled { opacity: 0.3; cursor: not-allowed; }
+  .btn-pdf.ready {
+    background: linear-gradient(135deg, #16a34a, #15803d);
+    border-color: #16a34a;
+  }
+
+  /* 숨김 input */
+  #cameraInput, #galleryInput { display: none; }
+
+  /* 로딩 오버레이 */
+  .loading-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 200;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+  }
+  .loading-overlay.show { display: flex; }
+  .spinner {
+    width: 44px; height: 44px;
+    border: 3px solid #333;
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { font-size: 15px; color: var(--text2); }
+
+  /* 토스트 */
+  .toast {
+    position: fixed;
+    bottom: 180px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-size: 13px;
+    opacity: 0;
+    transition: all 0.3s;
+    white-space: nowrap;
+    z-index: 300;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-title">📄 문서 스캐너</div>
+  <div class="page-count" id="pageCount">0 페이지</div>
+</div>
+
+<div class="main" id="main">
+  <div class="empty-state" id="emptyState">
+    <div class="empty-icon">📷</div>
+    <div class="empty-title">문서를 스캔해보세요</div>
+    <div class="empty-sub">카메라로 촬영하거나<br>갤러리에서 사진을 선택하세요<br>여러 장을 모아 PDF로 저장할 수 있어요</div>
+  </div>
+  <div class="pages-grid" id="pagesGrid" style="display:none;"></div>
+</div>
+
+<div class="bottom-bar">
+  <div class="btn-row">
+    <button class="btn btn-camera" onclick="openCamera()">📷 촬영</button>
+    <button class="btn btn-gallery" onclick="openGallery()">🖼️ 갤러리</button>
+  </div>
+  <button class="btn-pdf" id="btnPdf" onclick="exportPdf()" disabled>
+    📑 PDF 저장
+  </button>
+</div>
+
+<input type="file" id="cameraInput" accept="image/*" capture="environment" onchange="handleFiles(this)">
+<input type="file" id="galleryInput" accept="image/*" multiple onchange="handleFiles(this)">
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loadingText">처리 중...</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- jsPDF -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<script>
+let pages = []; // { dataUrl, width, height }
+
+function openCamera() {
+  document.getElementById('cameraInput').click();
+}
+function openGallery() {
+  document.getElementById('galleryInput').click();
+}
+
+async function handleFiles(input) {
+  const files = Array.from(input.files);
+  if (!files.length) return;
+
+  showLoading(`이미지 처리 중... (0/${files.length})`);
+
+  for (let i = 0; i < files.length; i++) {
+    showLoading(`배경 제거 중... (${i+1}/${files.length})`);
+    const processed = await processImage(files[i]);
+    pages.push(processed);
+  }
+
+  input.value = '';
+  render();
+  hideLoading();
+  showToast(`${files.length}장 추가됐어요`);
+}
+
+function processImage(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX = 1800;
+        let w = img.width, h = img.height;
+        if (w > MAX || h > MAX) {
+          const ratio = Math.min(MAX/w, MAX/h);
+          w = Math.round(w * ratio);
+          h = Math.round(h * ratio);
+        }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+
+        // 흰 배경 먼저 깔기
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+
+        // 배경 제거 (밝은 픽셀 → 흰색)
+        const imageData = ctx.getImageData(0, 0, w, h);
+        const data = imageData.data;
+
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i], g = data[i+1], b = data[i+2];
+          const brightness = (r + g + b) / 3;
+          // 밝은 영역(배경)을 흰색으로
+          if (brightness > 200) {
+            data[i] = 255; data[i+1] = 255; data[i+2] = 255;
+          } else {
+            // 어두운 글자는 더 진하게
+            const factor = Math.max(0, 1 - (brightness / 180));
+            data[i] = Math.round(r * (1 - factor * 0.5));
+            data[i+1] = Math.round(g * (1 - factor * 0.5));
+            data[i+2] = Math.round(b * (1 - factor * 0.5));
+          }
+        }
+        ctx.putImageData(imageData, 0, 0);
+
+        resolve({
+          dataUrl: canvas.toDataURL('image/jpeg', 0.92),
+          width: w,
+          height: h
+        });
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function render() {
+  const empty = document.getElementById('emptyState');
+  const grid = document.getElementById('pagesGrid');
+  const count = document.getElementById('pageCount');
+  const btnPdf = document.getElementById('btnPdf');
+
+  count.textContent = `${pages.length} 페이지`;
+
+  if (!pages.length) {
+    empty.style.display = 'flex';
+    grid.style.display = 'none';
+    btnPdf.disabled = true;
+    btnPdf.classList.remove('ready');
+    btnPdf.textContent = '📑 PDF 저장';
+    return;
+  }
+
+  empty.style.display = 'none';
+  grid.style.display = 'grid';
+  btnPdf.disabled = false;
+  btnPdf.classList.add('ready');
+  btnPdf.innerHTML = `📑 PDF 저장 (${pages.length}장)`;
+
+  grid.innerHTML = pages.map((p, i) => `
+    <div class="page-item">
+      <img src="${p.dataUrl}" alt="페이지 ${i+1}">
+      <div class="page-num">${i+1}</div>
+      <button class="page-delete" onclick="deletePage(${i})">✕</button>
+    </div>
+  `).join('');
+}
+
+function deletePage(idx) {
+  pages.splice(idx, 1);
+  render();
+  showToast('삭제했어요');
+}
+
+async function exportPdf() {
+  if (!pages.length) return;
+  showLoading('PDF 생성 중...');
+
+  try {
+    await new Promise(r => setTimeout(r, 100));
+    const { jsPDF } = window.jspdf;
+
+    const first = pages[0];
+    const isLandscape = first.width > first.height;
+    const orientation = isLandscape ? 'landscape' : 'portrait';
+
+    const pdf = new jsPDF({ orientation, unit: 'px', hotfixes: ['px_scaling'] });
+
+    for (let i = 0; i < pages.length; i++) {
+      const p = pages[i];
+      if (i > 0) {
+        const isL = p.width > p.height;
+        pdf.addPage([p.width, p.height], isL ? 'landscape' : 'portrait');
+      }
+      pdf.setPage(i + 1);
+      const pw = pdf.internal.pageSize.getWidth();
+      const ph = pdf.internal.pageSize.getHeight();
+      pdf.addImage(p.dataUrl, 'JPEG', 0, 0, pw, ph, '', 'FAST');
+    }
+
+    const now = new Date();
+    const fname = `scan_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}.pdf`;
+    pdf.save(fname);
+
+    hideLoading();
+    showToast('PDF 저장 완료!');
+  } catch(e) {
+    hideLoading();
+    showToast('오류: ' + e.message);
+  }
+}
+
+function showLoading(text) {
+  document.getElementById('loadingText').textContent = text;
+  document.getElementById('loadingOverlay').classList.add('show');
+}
+function hideLoading() {
+  document.getElementById('loadingOverlay').classList.remove('show');
+}
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// 서비스 워커 등록
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
