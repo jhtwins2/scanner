@@ -2,7 +2,7 @@
   "name": "문서 스캐너",
   "short_name": "스캐너",
   "description": "문서 촬영 후 배경 제거, PDF 저장",
-  "start_url": "/",
+  "start_url": "/scanner/",
   "display": "standalone",
   "background_color": "#0f0f0f",
   "theme_color": "#0f0f0f",
