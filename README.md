@@ -1,4 +1,4 @@
-# 📄 문서 스캐너 (Document Scanner PWA)
+# 📄 문서 스캐너 (android document scanner korean PWA)
 
 > 무료 · 무제한 · 광고 없음 · 설치 불필요
 
