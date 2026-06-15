@@ -200,37 +200,65 @@ function openCropEditor(img) {
 
 function autoDetect(dw, dh) {
   const {img} = cropCurrent;
+  // 분석은 작게 다운샘플해서 빠르게 (200px 기준)
+  const AW = 200;
+  const aw = AW, ah = Math.max(1, Math.round(dh * (AW/dw)));
   const tmp = document.createElement('canvas');
-  tmp.width = dw; tmp.height = dh;
+  tmp.width=aw; tmp.height=ah;
   const ctx = tmp.getContext('2d');
-  ctx.drawImage(img, 0, 0, dw, dh);
-  const d = ctx.getImageData(0, 0, dw, dh).data;
+  ctx.drawImage(img, 0, 0, aw, ah);
+  const d = ctx.getImageData(0,0,aw,ah).data;
 
-  function br(x, y) {
-    const i=(y*dw+x)*4;
-    return d[i]*0.299 + d[i+1]*0.587 + d[i+2]*0.114;
+  const gray = new Float32Array(aw*ah);
+  for(let i=0,j=0;i<d.length;i+=4,j++) gray[j]=d[i]*0.299+d[i+1]*0.587+d[i+2]*0.114;
+
+  // 배경 밝기 = 네 모서리 표본의 중앙값 (한 점 노이즈에 안 흔들리게)
+  const m = Math.max(2, Math.round(aw*0.05));
+  const samp = [];
+  for(let yy=0;yy<m;yy++)for(let xx=0;xx<m;xx++){
+    samp.push(gray[yy*aw+xx], gray[yy*aw+(aw-1-xx)],
+             gray[(ah-1-yy)*aw+xx], gray[(ah-1-yy)*aw+(aw-1-xx)]);
   }
+  samp.sort((a,b)=>a-b);
+  const bg = samp[samp.length>>1];
 
-  const bgBr = (br(3,3)+br(dw-4,3)+br(3,dh-4)+br(dw-4,dh-4))/4;
-  const thr = 40;
-  let top=Math.round(dh*0.05), bottom=Math.round(dh*0.95);
-  let left=Math.round(dw*0.05), right=Math.round(dw*0.95);
+  // 적응형 임계값
+  let mn=255, mx=0;
+  for(let i=0;i<gray.length;i++){ if(gray[i]<mn)mn=gray[i]; if(gray[i]>mx)mx=gray[i]; }
+  const thr = Math.max(28, (mx-mn)*0.22);
 
-  outer:for(let y=0;y<dh;y++)for(let x=Math.floor(dw*0.1);x<Math.floor(dw*0.9);x++)
-    if(Math.abs(br(x,y)-bgBr)>thr){top=Math.max(0,y-6);break outer;}
-  outer:for(let y=dh-1;y>=0;y--)for(let x=Math.floor(dw*0.1);x<Math.floor(dw*0.9);x++)
-    if(Math.abs(br(x,y)-bgBr)>thr){bottom=Math.min(dh-1,y+6);break outer;}
-  outer:for(let x=0;x<dw;x++)for(let y=Math.floor(dh*0.1);y<Math.floor(dh*0.9);y++)
-    if(Math.abs(br(x,y)-bgBr)>thr){left=Math.max(0,x-6);break outer;}
-  outer:for(let x=dw-1;x>=0;x--)for(let y=Math.floor(dh*0.1);y<Math.floor(dh*0.9);y++)
-    if(Math.abs(br(x,y)-bgBr)>thr){right=Math.min(dw-1,x+6);break outer;}
-
-  if((right-left)>dw*0.25 && (bottom-top)>dh*0.25) {
-    cropCorners = [
-      {x:left, y:top}, {x:right, y:top},
-      {x:right, y:bottom}, {x:left, y:bottom}
-    ];
+  // 문서 마스크 + 무게중심
+  const mask = new Uint8Array(aw*ah);
+  let sx=0, sy=0, cnt=0;
+  for(let y=0;y<ah;y++)for(let x=0;x<aw;x++){
+    const j=y*aw+x;
+    if(Math.abs(gray[j]-bg)>thr){ mask[j]=1; sx+=x; sy+=y; cnt++; }
   }
+  // 문서를 못 찾으면(너무 적게 잡힘) 기본 꼭짓점 유지
+  if(cnt < aw*ah*0.05) return;
+
+  // 네 꼭짓점 = (x+y), (x-y) 극값 위치 → 기울어진 사각형도 대응
+  let tl,tr,br,bl, tlV=1e9, brV=-1e9, trV=-1e9, blV=-1e9;
+  for(let y=0;y<ah;y++)for(let x=0;x<aw;x++){
+    if(!mask[y*aw+x]) continue;
+    const sum=x+y, dif=x-y;
+    if(sum<tlV){tlV=sum; tl={x,y};}
+    if(sum>brV){brV=sum; br={x,y};}
+    if(dif>trV){trV=dif; tr={x,y};}
+    if(-dif>blV){blV=-dif; bl={x,y};}
+  }
+  if(!tl||!tr||!br||!bl) return;
+
+  // 디스플레이 좌표로 환산 + 중심 기준 1% 바깥 여유(가장자리 잘림 방지)
+  const s = dw/aw;
+  const cx=(sx/cnt)*s, cy=(sy/cnt)*s;
+  cropCorners = [tl,tr,br,bl].map(p=>{
+    const px=p.x*s, py=p.y*s;
+    return {
+      x: Math.max(0, Math.min(dw, cx+(px-cx)*1.01)),
+      y: Math.max(0, Math.min(dh, cy+(py-cy)*1.01))
+    };
+  });
 }
 
 function drawCrop() {
@@ -389,26 +417,37 @@ function perspectiveWarp(img, corners, w, h) {
 
     const srcC = document.createElement('canvas');
     srcC.width=w; srcC.height=h;
-    srcC.getContext('2d').drawImage(img,0,0,w,h);
     const srcCtx = srcC.getContext('2d');
+    srcCtx.drawImage(img,0,0,w,h);
+    // 소스를 통째로 한 번만 읽는다 (기존: 픽셀마다 getImageData → 140만회 호출)
+    const sdata = srcCtx.getImageData(0,0,w,h).data;
 
     const outC = document.createElement('canvas');
     outC.width=outW; outC.height=outH;
     const outCtx = outC.getContext('2d');
-    outCtx.fillStyle='#fff'; outCtx.fillRect(0,0,outW,outH);
     const outId = outCtx.createImageData(outW,outH);
+    const o = outId.data;
+
+    const m0=Minv[0],m1=Minv[1],m2=Minv[2],m3=Minv[3],m4=Minv[4],m5=Minv[5],m6=Minv[6],m7=Minv[7],m8=Minv[8];
 
     for(let y=0;y<outH;y++) {
       for(let x=0;x<outW;x++) {
-        const denom = Minv[6]*x+Minv[7]*y+Minv[8];
-        const sx = (Minv[0]*x+Minv[1]*y+Minv[2])/denom;
-        const sy = (Minv[3]*x+Minv[4]*y+Minv[5])/denom;
+        const denom = m6*x+m7*y+m8;
+        const sx = (m0*x+m1*y+m2)/denom;
+        const sy = (m3*x+m4*y+m5)/denom;
         const di = (y*outW+x)*4;
-        if(sx>=0&&sx<w&&sy>=0&&sy<h) {
-          const sd = srcCtx.getImageData(Math.round(sx),Math.round(sy),1,1).data;
-          outId.data[di]=sd[0];outId.data[di+1]=sd[1];outId.data[di+2]=sd[2];outId.data[di+3]=255;
+        if(sx>=0 && sx<w-1 && sy>=0 && sy<h-1) {
+          // 양선형 보간 (nearest → bilinear, 글자 가장자리 매끄럽게)
+          const x0=sx|0, y0=sy|0;
+          const fx=sx-x0, fy=sy-y0;
+          const i00=(y0*w+x0)*4, i10=i00+4, i01=i00+w*4, i11=i01+4;
+          const w00=(1-fx)*(1-fy), w10=fx*(1-fy), w01=(1-fx)*fy, w11=fx*fy;
+          o[di]  =sdata[i00]  *w00+sdata[i10]  *w10+sdata[i01]  *w01+sdata[i11]  *w11;
+          o[di+1]=sdata[i00+1]*w00+sdata[i10+1]*w10+sdata[i01+1]*w01+sdata[i11+1]*w11;
+          o[di+2]=sdata[i00+2]*w00+sdata[i10+2]*w10+sdata[i01+2]*w01+sdata[i11+2]*w11;
+          o[di+3]=255;
         } else {
-          outId.data[di]=255;outId.data[di+1]=255;outId.data[di+2]=255;outId.data[di+3]=255;
+          o[di]=255;o[di+1]=255;o[di+2]=255;o[di+3]=255;
         }
       }
     }
